@@ -22,26 +22,37 @@ await redis.connect();
 const lastProcessedTimestamp = await redis.get("zksync:bridge:lastProcessedTimestamp");
 const lastProcessedDate = new Date(lastProcessedTimestamp); 
 const now = new Date();
-const five_min_ms = 5*60*1000;
+const thirty_sec_ms = 30*1000;
 // Nothing processed yet? Set the last process date to now
 // NO OLD TXS processed
 if (!lastProcessedDate) {
     await redis.set("zksync:bridge:lastProcessedTimestamp", now.toISOString());
 }
-// Last processed less than 5 min ago?
-// Set it to now. Better safe than sorry if you've been down for that long. 
+// Last processed less than 30s ago?
+// Set it to now. Better safe than sorry if you've been down for more than a restart.
 // You can manually process anything that fell through. 
-if (lastProcessedDate.getTime() < now.getTime() - five_min_ms) {
+if (lastProcessedDate.getTime() < now.getTime() - thirty_sec_ms) {
     await redis.set("zksync:bridge:lastProcessedTimestamp", now.toISOString());
 }
 
 // Connect to ETH + Zksync
 let syncWallet, syncProvider, ethWallet;
-const ethersProvider = ethers.getDefaultProvider(process.env.ETH_NETWORK);
+const ethersProvider = new ethers.providers.InfuraProvider(
+    process.env.ETH_NETWORK,
+    process.env.INFURA_PROJECT_ID,
+);
 try {
     syncProvider = await zksync.getDefaultRestProvider(process.env.ETH_NETWORK);
     ethWallet = new ethers.Wallet(process.env.ETH_PRIVKEY, ethersProvider);
     syncWallet = await zksync.Wallet.fromEthSigner(ethWallet, syncProvider);
+    if (!(await syncWallet.isSigningKeySet())) {
+        console.log("setting sign key");
+        const signKeyResult = await syncWallet.setSigningKey({
+            feeToken: "ETH",
+            ethAuthType: "ECDSA",
+        });
+        console.log(signKeyResult);
+    }
 } catch (e) {
     console.log(e);
     throw new Error("Could not connect to zksync API");
@@ -88,28 +99,6 @@ async function processNewWithdraws() {
         if (isProcessed !== null) {
             continue;
         }
-
-        console.log("new tx", tx);
-
-        
-        // Receiver doesn't match expected? Abort. Why is the API broken? 
-        if (receiver.toLowerCase() !== process.env.ZKSYNC_BRIDGE_ADDRESS.toLowerCase()) {
-            throw new Error("ABORT: Receiver does not match wallet");
-        }
-        
-        // Status is not committed? Ignore.
-        if (!(["committed", "finalized"]).includes(txStatus)) {
-            console.log("New transaction found but not committed");
-            continue;
-        }
-        
-        // Token is not supported ? Mark as processed and continue
-        if (!SUPPORTED_TOKEN_IDS.includes(tokenId)) {
-            console.log("transaction from unsupported token");
-            await redis.set(`zksync:bridge:${txhash}:processed`, 1);
-            await redis.set("zksync:bridge:lastProcessedTimestamp", tx.createdAt);
-            continue;
-        }
         
         // Tx type is not Transfer ? Mark as processed and update last process time
         if (txType !== "Transfer") {
@@ -119,6 +108,26 @@ async function processNewWithdraws() {
             continue;
         }
 
+
+        // Receiver doesn't match expected? Abort. Why is the API broken? 
+        if (receiver.toLowerCase() !== process.env.ZKSYNC_BRIDGE_ADDRESS.toLowerCase()) {
+            throw new Error("ABORT: Receiver does not match wallet");
+        }
+
+        // Status is rejected. Mark as processed and update last processed time
+        if ((["rejected"]).includes(txStatus)) {
+            console.log("Rejected tx");
+            await redis.set(`zksync:bridge:${txhash}:processed`, 1);
+            await redis.set("zksync:bridge:lastProcessedTimestamp", tx.createdAt);
+            continue;
+        }
+        
+        // Status is not committed? Ignore.
+        if (!(["committed", "finalized"]).includes(txStatus)) {
+            console.log("New transaction found but not committed");
+            continue;
+        }
+        
         // Timestamp > now ? Suspicious. Mark it as processed and don't send funds. 
         // Also update the last processed date to the newest time so nothing before that gets processed just in case
         if (timestamp.getTime() > now.getTime()) {
@@ -134,16 +143,43 @@ async function processNewWithdraws() {
             await redis.set(`zksync:bridge:${txhash}:processed`, 1);
             continue;
         }
+        
+        // Token is not supported ? Mark as processed and continue
+        if (!SUPPORTED_TOKEN_IDS.includes(tokenId)) {
+            console.log("transaction from unsupported token");
+            console.log("Returning funds");
+            await redis.set(`zksync:bridge:${txhash}:processed`, 1);
+            await redis.set("zksync:bridge:lastProcessedTimestamp", tx.createdAt);
+            const refundTransaction = await syncWallet.syncTransfer({
+                to: sender,
+                token: tokenId,
+                amount,
+                feeToken: 'ETH'
+            });
+            const receipt = await refundTransaction.awaitReceipt();
+            console.log(refundTransaction);
+            continue;
+        }
+        
 
+        console.log("new tx", tx);
+
+
+        // Set the tx processed before you do anything to prevent accidental double spends
+        await redis.set(`zksync:bridge:${txhash}:processed`, 1);
+        await redis.set("zksync:bridge:lastProcessedTimestamp", tx.createdAt);
 
         // Time to actually send this thing
+        const feeData = await ethersProvider.getFeeData();
+        const bridgeFee = feeData.maxFeePerGas.mul(130).div(100).mul(21000);
+        console.log("Bridge Fee: ", bridgeFee.toString() / 1e18, " ETH");
+        const amountMinusFee = ethers.BigNumber.from(amount).sub(bridgeFee).toString();
         const contractAddress = TOKEN_DETAILS[tokenId].address;
         if (contractAddress === ETH_ADDRESS) {
             console.log("Sending tx on L1");
-            await redis.set(`zksync:bridge:${txhash}:processed`, 1);
             const l1tx = await ethWallet.sendTransaction({
                 to: sender,
-                value: amount
+                value: amountMinusFee
             });
             console.log(l1tx);
         }
