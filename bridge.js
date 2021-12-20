@@ -109,8 +109,16 @@ async function processNewWithdraws() {
         }
 
 
-        // Receiver doesn't match expected? Abort. Why is the API broken? 
+        // Ignore outgoing transactions
+        if (sender.toLowerCase() === process.env.ZKSYNC_BRIDGE_ADDRESS.toLowerCase()) {
+            console.log("IGNORE: Outgoing tx");
+            await redis.set(`zksync:bridge:${txhash}:processed`, 1);
+            await redis.set("zksync:bridge:lastProcessedTimestamp", tx.createdAt);
+            continue;
+        }
+
         if (receiver.toLowerCase() !== process.env.ZKSYNC_BRIDGE_ADDRESS.toLowerCase()) {
+            console.log(tx);
             throw new Error("ABORT: Receiver does not match wallet");
         }
 
@@ -164,6 +172,28 @@ async function processNewWithdraws() {
 
         console.log("new tx", tx);
 
+        // Check if there are sufficient funds in the L1 wallet
+        // Refund the funds if not
+        const tokenContractAddress = TOKEN_DETAILS[tokenId].address;
+        if (tokenContractAddress === ETH_ADDRESS) {
+            const bridgeBalance = await ethersProvider.getBalance(ethWallet.address);
+            if (ethers.BigNumber.from(amount).gt(bridgeBalance)) {
+                console.log("amount too big. bridge has insufficient funds");
+                console.log("refunding tx");
+                await redis.set(`zksync:bridge:${txhash}:processed`, 1);
+                await redis.set("zksync:bridge:lastProcessedTimestamp", tx.createdAt);
+                const refundTransaction = await syncWallet.syncTransfer({
+                    to: sender,
+                    token: tokenId,
+                    amount,
+                    feeToken: 'ETH'
+                });
+                const receipt = await refundTransaction.awaitReceipt();
+                console.log(refundTransaction);
+                continue;
+            }
+        }
+
 
         // Set the tx processed before you do anything to prevent accidental double spends
         await redis.set(`zksync:bridge:${txhash}:processed`, 1);
@@ -174,8 +204,7 @@ async function processNewWithdraws() {
         const bridgeFee = feeData.maxFeePerGas.mul(130).div(100).mul(21000);
         console.log("Bridge Fee: ", bridgeFee.toString() / 1e18, " ETH");
         const amountMinusFee = ethers.BigNumber.from(amount).sub(bridgeFee).toString();
-        const contractAddress = TOKEN_DETAILS[tokenId].address;
-        if (contractAddress === ETH_ADDRESS) {
+        if (tokenContractAddress === ETH_ADDRESS) {
             console.log("Sending tx on L1");
             const l1tx = await ethWallet.sendTransaction({
                 to: sender,
