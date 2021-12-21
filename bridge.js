@@ -199,16 +199,30 @@ async function processNewWithdraws() {
         await redis.set(`zksync:bridge:${txhash}:processed`, 1);
         await redis.set("zksync:bridge:lastProcessedTimestamp", tx.createdAt);
 
-        // Time to actually send this thing
+        // Get fee data and see if the tx amount is enough to pay fees
         const feeData = await ethersProvider.getFeeData();
         const bridgeFee = feeData.maxFeePerGas.mul(130).div(100).mul(21000);
         console.log("Bridge Fee: ", bridgeFee.toString() / 1e18, " ETH");
-        const amountMinusFee = ethers.BigNumber.from(amount).sub(bridgeFee).toString();
+        const amountMinusFee = ethers.BigNumber.from(amount).sub(bridgeFee);
+        if (amountMinusFee.lt(0)) {
+            console.log("Bridge amount is too low");
+            console.log("Refunding tx");
+            const refundTransaction = await syncWallet.syncTransfer({
+                to: sender,
+                token: tokenId,
+                amount,
+                feeToken: 'ETH'
+            });
+            const receipt = await refundTransaction.awaitReceipt();
+            console.log(refundTransaction);
+            continue;
+        }
+            
         if (tokenContractAddress === ETH_ADDRESS) {
             console.log("Sending tx on L1");
             const l1tx = await ethWallet.sendTransaction({
                 to: sender,
-                value: amountMinusFee
+                value: amountMinusFee.toString()
             });
             console.log(l1tx);
         }
