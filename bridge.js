@@ -2,6 +2,7 @@ import * as zksync from "zksync";
 import ethers from 'ethers';
 import dotenv from 'dotenv';
 import * as Redis from 'redis';
+import fs from 'fs';
 
 dotenv.config();
 
@@ -58,19 +59,24 @@ try {
     throw new Error("Could not connect to zksync API");
 }
 
+// Load ERC-20 ABI
+const ERC20_ABI = JSON.parse(fs.readFileSync('ERC20.abi'));
+
+
 // Load supported tokens
 const ETH_ADDRESS = '0x0000000000000000000000000000000000000000';
-const SUPPORTED_TOKEN_IDS = process.env.SUPPORTED_TOKEN_IDS.split(',').map(parseInt).filter(v => !isNaN(v));
+const SUPPORTED_TOKEN_IDS = process.env.SUPPORTED_TOKEN_IDS.split(',').map(v => parseInt(v)).filter(v => !isNaN(v));
 const TOKEN_DETAILS = {};
 for (let i in SUPPORTED_TOKEN_IDS) {
     const id = SUPPORTED_TOKEN_IDS[i];
     const details = await syncProvider.tokenInfo(id);
     TOKEN_DETAILS[id] = details;
 }
+console.log("Supported Tokens");
+console.log(TOKEN_DETAILS);
 
 
 processNewWithdraws()
-setInterval(processNewWithdraws, 5000);
 
 async function processNewWithdraws() {
     const account_txs = await syncProvider.accountTxs(process.env.ZKSYNC_BRIDGE_ADDRESS, {
@@ -175,23 +181,28 @@ async function processNewWithdraws() {
         // Check if there are sufficient funds in the L1 wallet
         // Refund the funds if not
         const tokenContractAddress = TOKEN_DETAILS[tokenId].address;
+        let bridgeBalance;
         if (tokenContractAddress === ETH_ADDRESS) {
-            const bridgeBalance = await ethersProvider.getBalance(ethWallet.address);
-            if (ethers.BigNumber.from(amount).gt(bridgeBalance)) {
-                console.log("amount too big. bridge has insufficient funds");
-                console.log("refunding tx");
-                await redis.set(`zksync:bridge:${txhash}:processed`, 1);
-                await redis.set("zksync:bridge:lastProcessedTimestamp", tx.createdAt);
-                const refundTransaction = await syncWallet.syncTransfer({
-                    to: sender,
-                    token: tokenId,
-                    amount,
-                    feeToken: 'ETH'
-                });
-                const receipt = await refundTransaction.awaitReceipt();
-                console.log(refundTransaction);
-                continue;
-            }
+            bridgeBalance = await ethersProvider.getBalance(ethWallet.address);
+        }
+        else {
+            const contract = new ethers.Contract(TOKEN_DETAILS[tokenId].address, ERC20_ABI, ethWallet);
+            bridgeBalance = await contract.balanceOf(ethWallet.address);
+        }
+        if (ethers.BigNumber.from(amount).gt(bridgeBalance)) {
+            console.log("amount too big. bridge has insufficient funds");
+            console.log("refunding tx");
+            await redis.set(`zksync:bridge:${txhash}:processed`, 1);
+            await redis.set("zksync:bridge:lastProcessedTimestamp", tx.createdAt);
+            const refundTransaction = await syncWallet.syncTransfer({
+                to: sender,
+                token: tokenId,
+                amount,
+                feeToken: 'ETH'
+            });
+            const receipt = await refundTransaction.awaitReceipt();
+            console.log(refundTransaction);
+            continue;
         }
 
 
@@ -202,8 +213,17 @@ async function processNewWithdraws() {
         // Get fee data and see if the tx amount is enough to pay fees
         const feeData = await ethersProvider.getFeeData();
         const bridgeFee = feeData.maxFeePerGas.mul(130).div(100).mul(21000);
-        console.log("Bridge Fee: ", bridgeFee.toString() / 1e18, " ETH");
-        const amountMinusFee = ethers.BigNumber.from(amount).sub(bridgeFee);
+        // Adjust for decimal difference, gas difference, and price difference
+        const stableFee = (bridgeFee.toString() / 1e18 * process.env.ETH_PRICE_APPROX * 10**TOKEN_DETAILS[tokenId].decimals * 50000 / 21000).toFixed(0);
+        let amountMinusFee;
+        if (tokenContractAddress === ETH_ADDRESS) {
+            console.log("Bridge Fee: ", bridgeFee.toString() / 1e18, " ETH");
+            amountMinusFee = ethers.BigNumber.from(amount).sub(bridgeFee);
+        }
+        else {
+            console.log("Stable Fee: ", stableFee / 10**TOKEN_DETAILS[tokenId].decimals, TOKEN_DETAILS[tokenId].symbol);
+            amountMinusFee = ethers.BigNumber.from(amount).sub(stableFee);
+        }
         if (amountMinusFee.lt(0)) {
             console.log("Bridge amount is too low");
             console.log("Refunding tx");
@@ -219,15 +239,21 @@ async function processNewWithdraws() {
         }
             
         if (tokenContractAddress === ETH_ADDRESS) {
-            console.log("Sending tx on L1");
+            console.log("Sending ETH on L1");
             const l1tx = await ethWallet.sendTransaction({
                 to: sender,
                 value: amountMinusFee.toString()
             });
             console.log(l1tx);
         }
+        // ERC-20
         else {
-            //ethWallet
+            console.log("Sending ERC-20 on L1");
+            const contract = new ethers.Contract(TOKEN_DETAILS[tokenId].address, ERC20_ABI, ethWallet);
+            const l1tx = await contract.transfer(sender, amountMinusFee.toString());
+            console.log(l1tx);
         }
     }
+
+    setTimeout(processNewWithdraws, 5000);
 }
