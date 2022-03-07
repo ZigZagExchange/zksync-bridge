@@ -79,11 +79,19 @@ console.log(TOKEN_DETAILS);
 processNewWithdraws()
 
 async function processNewWithdraws() {
-    const account_txs = await syncProvider.accountTxs(process.env.ZKSYNC_BRIDGE_ADDRESS, {
-        from: 'latest', 
-        limit: 5, 
-        direction: 'older'
-    });
+    let account_txs;
+    try {
+        account_txs = await syncProvider.accountTxs(process.env.ZKSYNC_BRIDGE_ADDRESS, {
+            from: 'latest', 
+            limit: 5, 
+            direction: 'older'
+        });
+    } catch (e) {
+        console.error(e);
+        console.error("Zksync API is down");
+        setTimeout(processNewWithdraws, 5000);
+        return false;
+    }
     // Reverse the list and loop so that older transactions get processed first
     const reversed_txns = account_txs.list.reverse();
     for (let i in reversed_txns) {
