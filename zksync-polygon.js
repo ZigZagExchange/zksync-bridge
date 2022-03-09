@@ -48,7 +48,7 @@ const polygonProvider = new ethers.providers.JsonRpcProvider(
 try {
     syncProvider = await zksync.getDefaultRestProvider(process.env.ETH_NETWORK);
     ethWallet = new ethers.Wallet(process.env.ETH_PRIVKEY, ethersProvider);
-    polygonWallet = new ethers.Wallet(process.env.ETH_PRIVKEY, polygonProvider);
+    polygonWallet = new ethers.Wallet(process.env.POLYGON_PRIVKEY, polygonProvider);
     syncWallet = await zksync.Wallet.fromEthSigner(ethWallet, syncProvider);
     if (!(await syncWallet.isSigningKeySet())) {
         console.log("setting sign key");
@@ -191,8 +191,9 @@ async function processNewWithdraws() {
 
         // Check if there are sufficient funds in the L1 wallet
         // Refund the funds if not
-        const ethContract = new ethers.Contract(process.env.POLYGON_ETH_ADDRESS, ERC20_ABI, ethWallet);
+        const ethContract = new ethers.Contract(process.env.POLYGON_ETH_ADDRESS, ERC20_ABI, polygonWallet);
         const bridgeBalance = await ethContract.balanceOf(polygonWallet.address);
+        console.log(ethContract.address, polygonWallet.address, bridgeBalance);
         if (ethers.BigNumber.from(amount).gt(bridgeBalance)) {
             console.log("amount too big. bridge has insufficient funds");
             console.log("refunding tx");
@@ -221,7 +222,7 @@ async function processNewWithdraws() {
         // Adjust for decimal difference, gas difference, and price difference
         const ethFee = (bridgeFee.toString() / 1e18 * process.env.MATIC_ETH_PRICE_APPROX * 10**18 * 50000 / 21000).toFixed(0);
         console.log("ETH Fee: ", ethFee / 10**TOKEN_DETAILS[tokenId].decimals, TOKEN_DETAILS[tokenId].symbol);
-        amountMinusFee = ethers.BigNumber.from(amount).sub(ethFee);
+        const amountMinusFee = ethers.BigNumber.from(amount).sub(ethFee);
         if (amountMinusFee.lt(0)) {
             console.log("Bridge amount is too low");
             console.log("Refunding tx");
@@ -236,8 +237,16 @@ async function processNewWithdraws() {
             continue;
         }
             
-        console.log("Sending ETH on Polygon");
-        const l1tx = await ethContract.transfer(sender, amountMinusFee.toString());
+        // Fee estimation for Polygon Mumbai testnet is broken so it needs a special case
+        let l1tx;
+        if (process.env.POLYGON_NETWORK.includes("polygon-mumbai")) {
+            console.log("Sending ETH on Polygon Mumbai testnet");
+            l1tx = await ethContract.transfer(sender, amountMinusFee.toString(), { gasPrice: 100e9 });
+        }
+        else {
+            console.log("Sending ETH on Polygon");
+            l1tx = await ethContract.transfer(sender, amountMinusFee.toString());
+        }
         console.log(l1tx);
     }
 
