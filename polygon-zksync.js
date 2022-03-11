@@ -34,19 +34,19 @@ const polygonProvider = new ethers.providers.JsonRpcProvider(
 const syncProvider = await zksync.getDefaultRestProvider(process.env.ETH_NETWORK);
 
 // Set up Wallets
-const ethWallet = new ethers.Wallet(process.env.ETH_PRIVKEY, ethersProvider);
+const ethWallet = new ethers.Wallet(process.env.POLYGON_PRIVKEY, ethersProvider);
 const polygonWallet = new ethers.Wallet(process.env.POLYGON_PRIVKEY, polygonProvider);
 const syncWallet = await zksync.Wallet.fromEthSigner(ethWallet, syncProvider);
 
 // Set zksync Signing Key if necessary
-if (!(await syncWallet.isSigningKeySet())) {
-    console.log("setting sign key");
-    const signKeyResult = await syncWallet.setSigningKey({
-        feeToken: "ETH",
-        ethAuthType: "ECDSA",
-    });
-    console.log(signKeyResult);
-}
+//if (!(await syncWallet.isSigningKeySet())) {
+//    console.log("setting sign key");
+//    const signKeyResult = await syncWallet.setSigningKey({
+//        feeToken: "ETH",
+//        ethAuthType: "ECDSA",
+//    });
+//    console.log(signKeyResult);
+//}
 
 // Load ERC-20 ABI
 const ERC20_ABI = JSON.parse(fs.readFileSync('ERC20.abi'));
