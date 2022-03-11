@@ -64,22 +64,21 @@ async function processNewDeposits() {
     // Listen for our filtered results
     // TODO: Check how many confirmations before an event is sent
     contract.on(filter, async (sender, receiver, amount, event) => {
-        console.log(event);
-        console.log(sender, receiver, amount, polygonWallet.address);
         const txhash = event.transactionHash;
         const blockNum = event.blockNumber;
 
         // Ignore any txs not sent to our address
         if (receiver.toLowerCase() !== polygonWallet.address.toLowerCase()) {
             await redis.set(`polygon-zksync:${event.address}:lastProcessedLogIndex`, event.logIndex);
-            await redis.set(`polygon-zksync:${event.address}:lastProcessedTxIndex`, event.transactionIndex);
             await redis.set(`polygon-zksync:${txhash}:processed`, 1);
             return false;
         }
 
-        const lastProcessedBlockNum = (await redis.get(`polygon-zksync:${event.address}:lastProcessedBlockNum`)) || "0";
-        const lastProcessedTxIndex = (await redis.get(`polygon-zksync:${event.address}:lastProcessedLogIndex`)) || "0";
-        const lastProcessedLogIndex = (await redis.get(`polygon-zksync:${event.address}:lastProcessedTxIndex`)) || "0";
+        console.log("New incoming tx");
+        console.log(event);
+
+        const lastProcessedBlockNum = Number(await redis.get(`polygon-zksync:${event.address}:lastProcessedBlockNum`) || "0");
+        const lastProcessedLogIndex = Number(await redis.get(`polygon-zksync:${event.address}:lastProcessedTxIndex`) || "0");
         const isProcessed = await redis.get(`zksync:bridge:${txhash}:processed`);
         
         // Already processed or some other weird value is set? Continue
@@ -88,22 +87,21 @@ async function processNewDeposits() {
             return;
         }
 
-        // log or transaction index > now ? Suspicious. Mark it as processed and don't send funds. 
+        // Old transaction? Ignore.
         // Also update the last processed index to the newest time so nothing before that gets processed just in case
-        if (lastProcessedTxIndex && Number(lastProcessedTxIndex) >= event.transactionIndex) {
-            console.log("Out of order tx index? Strange.");
+        if (lastProcessedBlockNum > blockNum) {
+            console.log("Old transaction from old block. Ignoring");
             await redis.set(`zksync:bridge:${txhash}:processed`, 1);
             return;
         }
-        if (lastProcessedLogIndex && Number(lastProcessedLogIndex) >= event.logIndex) {
-            console.log("Out of order log index? Strange.");
+        else if (lastProcessedBlockNum === blockNum && lastProcessedLogIndex >= event.logIndex) {
+            console.log("Out of order log index in block. Ignoring.");
             await redis.set(`zksync:bridge:${txhash}:processed`, 1);
             return;
         }
 
         // Set the tx processed before you do anything to prevent accidental double spends
         await redis.set(`polygon-zksync:${event.address}:lastProcessedLogIndex`, event.logIndex);
-        await redis.set(`polygon-zksync:${event.address}:lastProcessedTxIndex`, event.transactionIndex);
         await redis.set(`polygon-zksync:${txhash}:processed`, 1);
 
         // Get Bridge Balance
@@ -111,8 +109,7 @@ async function processNewDeposits() {
         const ethBalance = accountState.committed.balances.ETH || 0;
 
         // Compute Bridge Fee
-        const feeDetails = await syncProvider.getTransactionFee("Transfer", syncWallet.address, "ETH");
-        console.log(feeDetails);
+        const feeDetails = await syncProvider.getTransactionFee("Transfer", accountState.address, "ETH");
         const bridgeFee = feeDetails.totalFee * 3;
         console.log("Bridge Fee: ", bridgeFee / 1e18, " ETH");
 
@@ -121,7 +118,13 @@ async function processNewDeposits() {
         const amountMinusFee = (amount - bridgeFee).toString();
         if (Number(amountMinusFee) > 0) {
             console.log("Sending ETH on zksync");
-            const zksyncTx = syncWallet.syncTransfer(receiver, "ETH", amountMinusFee);
+            const zksyncTx = await syncWallet.syncTransfer({
+                to: sender,
+                token: 'ETH',
+                amount: amountMinusFee,
+                feeToken: 'ETH'
+            });
+            console.log(zksyncTx);
             const receipt = await zksyncTx.awaitReceipt();
             console.log(receipt);
         }
