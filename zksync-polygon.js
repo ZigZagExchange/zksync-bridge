@@ -237,16 +237,8 @@ async function processNewWithdraws() {
             continue;
         }
             
-        // Fee estimation for Polygon Mumbai testnet is broken so it needs a special case
-        let l1tx;
-        if (process.env.POLYGON_NETWORK.includes("polygon-mumbai")) {
-            console.log("Sending ETH on Polygon Mumbai testnet");
-            l1tx = await ethContract.transfer(sender, amountMinusFee.toString(), { gasPrice: 100e9 });
-        }
-        else {
-            console.log("Sending ETH on Polygon");
-            l1tx = await ethContract.transfer(sender, amountMinusFee.toString(), { gasLimit: 100e3 });
-        }
+        console.log("Sending ETH on Polygon");
+        const l1tx = await ethContract.transfer(sender, amountMinusFee.toString(), { gasPrice: feeData.maxFeePerGas, gasLimit: 100e3 });
         console.log(l1tx);
     }
 
