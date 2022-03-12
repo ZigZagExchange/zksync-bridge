@@ -67,14 +67,19 @@ async function processNewDeposits() {
         const txhash = event.transactionHash;
         const blockNum = event.blockNumber;
 
-        // Wait 5 confirmations before proceeding
-        await polygonProvider.waitForTransaction(txhash, 5);
-
         // Ignore any txs not sent to our address
         if (receiver.toLowerCase() !== polygonWallet.address.toLowerCase()) {
             await redis.set(`polygon-zksync:${event.address}:lastProcessedLogIndex`, event.logIndex);
             await redis.set(`polygon-zksync:${txhash}:processed`, 1);
             return false;
+        }
+
+        // Wait 5 confirmations before proceeding
+        try {
+            await polygonProvider.waitForTransaction(txhash, 5);
+        } catch (e) {
+            console.error(e);
+            console.error("ERROR: Bridge failed. Will have to bridge this tx manually");
         }
 
         console.log("New incoming tx");
