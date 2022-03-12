@@ -245,7 +245,7 @@ async function processNewWithdraws() {
         }
         else {
             console.log("Sending ETH on Polygon");
-            l1tx = await ethContract.transfer(sender, amountMinusFee.toString());
+            l1tx = await ethContract.transfer(sender, amountMinusFee.toString(), { gasLimit: 100e3 });
         }
         console.log(l1tx);
     }
