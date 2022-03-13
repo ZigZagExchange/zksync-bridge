@@ -123,13 +123,14 @@ async function processNewDeposits() {
 
         // Send Transaction 
         // If the bridged amount is insufficient to cover the fee, ignore it
-        const amountMinusFee = (amount - bridgeFee).toString();
+        let amountMinusFee = (amount - bridgeFee).toString();
+        amountMinusFee = zksync.utils.closestPackableTransactionAmount(amountMinusFee);
         if (Number(amountMinusFee) > 0) {
             console.log("Sending ETH on zksync");
             const zksyncTx = await syncWallet.syncTransfer({
                 to: sender,
                 token: 'ETH',
-                amount: amountMinusFee,
+                amount: amountMinusFee.toString(),
                 feeToken: 'ETH'
             });
             console.log(zksyncTx);
