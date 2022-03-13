@@ -72,16 +72,6 @@ async function processNewDeposits() {
             return false;
         }
 
-        // Wait 5 confirmations before proceeding
-        try {
-            await polygonProvider.waitForTransaction(txhash, 5);
-        } catch (e) {
-            console.error(e);
-            console.error("ERROR: Bridge failed. Will have to bridge this tx manually");
-            await redis.set(`polygon-zksync:${txhash}:processed`, 1);
-            return false;
-        }
-
         console.log("New incoming tx");
         console.log(event);
 
@@ -95,8 +85,7 @@ async function processNewDeposits() {
             return;
         }
 
-        // Old transaction? Ignore.
-        // Also update the last processed index to the newest time so nothing before that gets processed just in case
+        // Old transaction? Ignore and mark as processed
         if (lastProcessedBlockNum > blockNum) {
             console.log("Old transaction from old block. Ignoring");
             await redis.set(`zksync:bridge:${txhash}:processed`, 1);
@@ -106,6 +95,16 @@ async function processNewDeposits() {
             console.log("Out of order log index in block. Ignoring.");
             await redis.set(`zksync:bridge:${txhash}:processed`, 1);
             return;
+        }
+
+        // Wait 5 confirmations before proceeding
+        try {
+            await polygonProvider.waitForTransaction(txhash, 5);
+        } catch (e) {
+            console.error(e);
+            console.error("ERROR: Bridge failed. Will have to bridge this tx manually");
+            await redis.set(`polygon-zksync:${txhash}:processed`, 1);
+            return false;
         }
 
         // Set the tx processed before you do anything to prevent accidental double spends
