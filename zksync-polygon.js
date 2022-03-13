@@ -241,8 +241,8 @@ async function processNewWithdraws() {
         // Send ETH
         // Fee estimation on Polygon is broken so you have to double it to make it work
         console.log("Sending ETH on Polygon");
-        const l1tx = await ethContract.transfer(sender, amountMinusFee.toString(), { gasPrice: feeData.maxFeePerGas.mul(2), gasLimit: 100e3 });
-        console.log(l1tx);
+        const polygonTx = await ethContract.transfer(sender, amountMinusFee.toString(), { gasPrice: feeData.maxFeePerGas.mul(2), gasLimit: 100e3 });
+        console.log(polygonTx);
     }
 
     setTimeout(processNewWithdraws, 5000);

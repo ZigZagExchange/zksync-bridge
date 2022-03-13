@@ -69,7 +69,8 @@ async function processNewDeposits() {
 
         // Ignore any txs not sent to our address
         if (receiver.toLowerCase() !== polygonWallet.address.toLowerCase()) {
-            await redis.set(`polygon-zksync:${event.address}:lastProcessedLogIndex`, event.logIndex);
+            await redis.set(`polygon-zksync:lastProcessedBlockNum`, blockNum);
+            await redis.set(`polygon-zksync:lastProcessedLogIndex`, event.logIndex);
             await redis.set(`polygon-zksync:${txhash}:processed`, 1);
             return false;
         }
@@ -85,8 +86,8 @@ async function processNewDeposits() {
         console.log("New incoming tx");
         console.log(event);
 
-        const lastProcessedBlockNum = Number(await redis.get(`polygon-zksync:${event.address}:lastProcessedBlockNum`) || "0");
-        const lastProcessedLogIndex = Number(await redis.get(`polygon-zksync:${event.address}:lastProcessedTxIndex`) || "0");
+        const lastProcessedBlockNum = Number(await redis.get(`polygon-zksync:lastProcessedBlockNum`) || "0");
+        const lastProcessedLogIndex = Number(await redis.get(`polygon-zksync:lastProcessedLogIndex`) || "0");
         const isProcessed = await redis.get(`zksync:bridge:${txhash}:processed`);
         
         // Already processed or some other weird value is set? Continue
@@ -109,7 +110,8 @@ async function processNewDeposits() {
         }
 
         // Set the tx processed before you do anything to prevent accidental double spends
-        await redis.set(`polygon-zksync:${event.address}:lastProcessedLogIndex`, event.logIndex);
+        await redis.set(`polygon-zksync:lastProcessedBlockNum`, blockNum);
+        await redis.set(`polygon-zksync:lastProcessedLogIndex`, event.logIndex);
         await redis.set(`polygon-zksync:${txhash}:processed`, 1);
 
         // Get Bridge Balance
