@@ -78,6 +78,8 @@ async function processNewDeposits() {
         } catch (e) {
             console.error(e);
             console.error("ERROR: Bridge failed. Will have to bridge this tx manually");
+            await redis.set(`polygon-zksync:${txhash}:processed`, 1);
+            return false;
         }
 
         console.log("New incoming tx");
