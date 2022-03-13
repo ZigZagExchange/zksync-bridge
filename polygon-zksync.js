@@ -69,8 +69,6 @@ async function processNewDeposits() {
 
         // Ignore any txs not sent to our address
         if (receiver.toLowerCase() !== polygonWallet.address.toLowerCase()) {
-            await redis.set(`polygon-zksync:lastProcessedBlockNum`, blockNum);
-            await redis.set(`polygon-zksync:lastProcessedLogIndex`, event.logIndex);
             await redis.set(`polygon-zksync:${txhash}:processed`, 1);
             return false;
         }
