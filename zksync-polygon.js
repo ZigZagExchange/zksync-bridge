@@ -47,7 +47,7 @@ const polygonProvider = new ethers.providers.JsonRpcProvider(
 );
 try {
     syncProvider = await zksync.getDefaultRestProvider(process.env.ETH_NETWORK);
-    ethWallet = new ethers.Wallet(process.env.ETH_PRIVKEY, ethersProvider);
+    ethWallet = new ethers.Wallet(process.env.POLYGON_PRIVKEY, ethersProvider);
     polygonWallet = new ethers.Wallet(process.env.POLYGON_PRIVKEY, polygonProvider);
     syncWallet = await zksync.Wallet.fromEthSigner(ethWallet, syncProvider);
     if (!(await syncWallet.isSigningKeySet())) {
