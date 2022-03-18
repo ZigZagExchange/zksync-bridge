@@ -16,7 +16,6 @@ const redis = Redis.createClient({
         rejectUnauthorized: false
     },
 });
-redis.on('error', (err) => console.log('Redis Client Error', err));
 await redis.connect();
 
 // Connect to Ethereum
