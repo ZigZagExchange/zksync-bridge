@@ -83,7 +83,7 @@ async function processNewWithdraws() {
     try {
         account_txs = await syncProvider.accountTxs(process.env.ZKSYNC_BRIDGE_ADDRESS, {
             from: 'latest', 
-            limit: 5, 
+            limit: 25, 
             direction: 'older'
         });
     } catch (e) {
