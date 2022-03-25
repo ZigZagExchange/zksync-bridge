@@ -66,7 +66,6 @@ try {
 // Load ERC-20 ABI
 const ERC20_ABI = JSON.parse(fs.readFileSync('ERC20.abi'));
 
-
 // Load supported tokens. Hard-coded to only accept ETH for now.
 const POLYGON_SUPPORTED_TOKEN_IDS = [0];
 const TOKEN_DETAILS = {};
@@ -77,6 +76,9 @@ for (let i in POLYGON_SUPPORTED_TOKEN_IDS) {
 }
 console.log("Supported Tokens");
 console.log(TOKEN_DETAILS);
+
+// LOAD BLACKLIST
+const BLACKLIST = process.env.BLACKLIST.split(',').map(b => b.toLowerCase());
 
 
 processNewWithdraws()
@@ -120,6 +122,15 @@ async function processNewWithdraws() {
         // Tx type is not Transfer ? Mark as processed and update last process time
         if (txType !== "Transfer") {
             console.log("Unsupported tx type");
+            await redis.set(`zksync-polygon:bridge:${txhash}:processed`, 1);
+            await redis.set("zksync-polygon:bridge:lastProcessedTimestamp", tx.createdAt);
+            continue;
+        }
+        
+        // Sender address is in blacklist ? Mark as processed and update last process time
+        if (BLACKLIST.includes(sender.toLowerCase())) {
+            console.log(tx);
+            console.log("IGNORE: Sender in blacklist");
             await redis.set(`zksync-polygon:bridge:${txhash}:processed`, 1);
             await redis.set("zksync-polygon:bridge:lastProcessedTimestamp", tx.createdAt);
             continue;

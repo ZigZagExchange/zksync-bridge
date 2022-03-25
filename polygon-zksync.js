@@ -51,8 +51,10 @@ const syncWallet = await zksync.Wallet.fromEthSigner(ethWallet, syncProvider);
 // Load ERC-20 ABI
 const ERC20_ABI = JSON.parse(fs.readFileSync('ERC20.abi'));
 
+// LOAD BLACKLIST
+const BLACKLIST = process.env.BLACKLIST.split(',').map(b => b.toLowerCase());
 
-// Load supported tokens
+
 processNewDeposits()
 
 async function processNewDeposits() {
@@ -93,6 +95,13 @@ async function processNewDeposits() {
         }
         else if (lastProcessedBlockNum === blockNum && lastProcessedLogIndex >= event.logIndex) {
             console.log("Out of order log index in block. Ignoring.");
+            await redis.set(`zksync:bridge:${txhash}:processed`, 1);
+            return;
+        }
+        
+        // Sender is in blacklist? Ignore and mark as processed
+        if (BLACKLIST.includes(sender.toLowerCase())) {
+            console.log("Sender in blacklist. Ignoring");
             await redis.set(`zksync:bridge:${txhash}:processed`, 1);
             return;
         }
