@@ -52,7 +52,7 @@ const syncWallet = await zksync.Wallet.fromEthSigner(ethWallet, syncProvider);
 const ERC20_ABI = JSON.parse(fs.readFileSync('ERC20.abi'));
 
 // LOAD BLACKLIST
-const BLACKLIST = process.env.BLACKLIST.split(',').map(b => b.toLowerCase());
+const BLACKLIST = (process.env.BLACKLIST && process.env.BLACKLIST.split(',').map(b => b.toLowerCase())) || [];
 
 
 processNewDeposits()

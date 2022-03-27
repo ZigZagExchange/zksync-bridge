@@ -78,7 +78,7 @@ console.log("Supported Tokens");
 console.log(TOKEN_DETAILS);
 
 // LOAD BLACKLIST
-const BLACKLIST = process.env.BLACKLIST.split(',').map(b => b.toLowerCase());
+const BLACKLIST = (process.env.BLACKLIST && process.env.BLACKLIST.split(',').map(b => b.toLowerCase())) || [];
 
 
 processNewWithdraws()
