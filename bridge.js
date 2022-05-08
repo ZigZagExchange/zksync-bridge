@@ -248,18 +248,26 @@ async function processNewWithdraws() {
             
         if (tokenContractAddress === ETH_ADDRESS) {
             console.log("Sending ETH on L1");
-            const l1tx = await ethWallet.sendTransaction({
-                to: sender,
-                value: amountMinusFee.toString()
-            });
-            console.log(l1tx);
+            try {
+                const l1tx = await ethWallet.sendTransaction({
+                    to: sender,
+                    value: amountMinusFee.toString()
+                });
+                console.log(l1tx);
+            } catch (e) {
+                console.log(e);
+            }
         }
         // ERC-20
         else {
             console.log("Sending ERC-20 on L1");
             const contract = new ethers.Contract(TOKEN_DETAILS[tokenId].address, ERC20_ABI, ethWallet);
-            const l1tx = await contract.transfer(sender, amountMinusFee.toString());
-            console.log(l1tx);
+            try {
+                const l1tx = await contract.transfer(sender, amountMinusFee.toString());
+                console.log(l1tx);
+            } catch (e) {
+                console.error(e);
+            }
         }
     }
 
