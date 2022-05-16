@@ -136,15 +136,19 @@ async function processNewDeposits() {
         amountMinusFee = zksync.utils.closestPackableTransactionAmount(amountMinusFee);
         if (Number(amountMinusFee) > 0) {
             console.log("Sending ETH on zksync");
-            const zksyncTx = await syncWallet.syncTransfer({
-                to: sender,
-                token: 'ETH',
-                amount: amountMinusFee.toString(),
-                feeToken: 'ETH'
-            });
-            console.log(zksyncTx);
-            const receipt = await zksyncTx.awaitReceipt();
-            console.log(receipt);
+            try {
+                const zksyncTx = await syncWallet.syncTransfer({
+                    to: sender,
+                    token: 'ETH',
+                    amount: amountMinusFee.toString(),
+                    feeToken: 'ETH'
+                });
+                console.log(zksyncTx);
+                const receipt = await zksyncTx.awaitReceipt();
+                console.log(receipt);
+            } catch (e) {
+                console.error(e);
+            }
         }
         else {
             console.log("Insufficient quantity to bridge");
