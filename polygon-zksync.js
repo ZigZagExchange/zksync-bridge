@@ -54,8 +54,11 @@ const ERC20_ABI = JSON.parse(fs.readFileSync('ERC20.abi'));
 // LOAD BLACKLIST
 const BLACKLIST = (process.env.BLACKLIST && process.env.BLACKLIST.split(',').map(b => b.toLowerCase())) || [];
 
+// Bridge queue
+const BRIDGE_QUEUE = [];
 
 processNewDeposits()
+processBridgeQueue()
 
 async function processNewDeposits() {
     const contract = new ethers.Contract(process.env.POLYGON_ETH_ADDRESS, ERC20_ABI, polygonWallet);
@@ -135,20 +138,7 @@ async function processNewDeposits() {
         let amountMinusFee = (amount - bridgeFee).toString();
         amountMinusFee = zksync.utils.closestPackableTransactionAmount(amountMinusFee);
         if (Number(amountMinusFee) > 0) {
-            console.log("Sending ETH on zksync");
-            try {
-                const zksyncTx = await syncWallet.syncTransfer({
-                    to: sender,
-                    token: 'ETH',
-                    amount: amountMinusFee.toString(),
-                    feeToken: 'ETH'
-                });
-                console.log(zksyncTx);
-                const receipt = await zksyncTx.awaitReceipt();
-                console.log(receipt);
-            } catch (e) {
-                console.error(e);
-            }
+            BRIDGE_QUEUE.push({sender, amount: amountMinusFee.toString()})
         }
         else {
             console.log("Insufficient quantity to bridge");
@@ -157,3 +147,27 @@ async function processNewDeposits() {
     });
 }
 
+async function processBridgeQueue() {
+    if (BRIDGE_QUEUE.length === 0) {
+        setTimeout(processBridgeQueue, 5000);
+        return false;
+    }
+
+    const queueTx = BRIDGE_QUEUE.shift();
+    console.log("Sending ETH on zksync");
+    try {
+        const zksyncTx = await syncWallet.syncTransfer({
+            to: queueTx.sender,
+            token: 'ETH',
+            amount: queueTx.amount,
+            feeToken: 'ETH'
+        });
+        console.log(zksyncTx);
+        const receipt = await zksyncTx.awaitReceipt();
+        console.log(receipt);
+    } catch (e) {
+        console.error(e);
+    }
+
+    setTimeout(processBridgeQueue, 5000);
+}
