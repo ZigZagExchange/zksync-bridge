@@ -80,8 +80,11 @@ console.log(TOKEN_DETAILS);
 // LOAD BLACKLIST
 const BLACKLIST = (process.env.BLACKLIST && process.env.BLACKLIST.split(',').map(b => b.toLowerCase())) || [];
 
+// Bridge queue
+const BRIDGE_QUEUE = [];
 
 processNewWithdraws()
+processBridgeQueue()
 
 async function processNewWithdraws() {
     let account_txs;
@@ -249,12 +252,20 @@ async function processNewWithdraws() {
             continue;
         }
             
-        // Send ETH
         // Fee estimation on Polygon is broken so you have to double it to make it work
-        console.log("Sending ETH on Polygon");
-        const polygonTx = await ethContract.transfer(sender, amountMinusFee.toString(), { gasPrice: feeData.maxFeePerGas.mul(2), gasLimit: 100e3 });
-        console.log(polygonTx);
+        BRIDGE_QUEUE.push({ sender, amount: amountMinusFee.toString(), gasPrice: feeData.maxFeePerGas.mul(2), gasLimit: 100e3 });
     }
 
     setTimeout(processNewWithdraws, 5000);
+}
+
+async function processBridgeQueue () {
+    if (BRIDGE_QUEUE.length > 0) {
+        console.log("Sending ETH on Polygon");
+        const entry = BRIDGE_QUEUE.shift();
+        const ethContract = new ethers.Contract(process.env.POLYGON_ETH_ADDRESS, ERC20_ABI, polygonWallet);
+        const polygonTx = await ethContract.transfer(entry.sender, entry.amount, { gasPrice: entry.gasPrice, gasLimit: entry.gasLimit });
+        console.log(polygonTx);
+    }
+    setTimeout(processBridgeQueue, 5000);
 }
