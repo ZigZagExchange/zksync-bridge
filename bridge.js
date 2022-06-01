@@ -266,9 +266,9 @@ async function processBridgeQueue () {
                     value: entry.amountMinusFee.toString()
                 });
                 console.log(l1tx);
-                console.log("Waiting on transaction to be mined");
+                console.log(`Waiting on transaction ${l1tx.hash} to be mined`);
                 await l1tx.wait();
-                console.log("Transaction mined");
+                console.log(`Transaction ${l1tx.hash} mined`);
             } catch (e) {
                 console.log(e);
             }
@@ -280,9 +280,9 @@ async function processBridgeQueue () {
             try {
                 const l1tx = await contract.transfer(entry.sender, entry.amountMinusFee.toString());
                 console.log(l1tx);
-                console.log("Waiting on transaction to be mined");
+                console.log(`Waiting on transaction ${l1tx.hash} to be mined`);
                 await l1tx.wait();
-                console.log("Transaction mined");
+                console.log(`Transaction ${l1tx.hash} mined`);
             } catch (e) {
                 console.error(e);
             }
