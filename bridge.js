@@ -75,8 +75,11 @@ for (let i in SUPPORTED_TOKEN_IDS) {
 console.log("Supported Tokens");
 console.log(TOKEN_DETAILS);
 
+// Set up Bridge queue
+const BRIDGE_QUEUE = []
 
 processNewWithdraws()
+processBridgeQueue()
 
 async function processNewWithdraws() {
     let account_txs;
@@ -246,14 +249,26 @@ async function processNewWithdraws() {
             continue;
         }
             
-        if (tokenContractAddress === ETH_ADDRESS) {
+        BRIDGE_QUEUE.push({ tokenContractAddress, sender, amountMinusFee, tokenId });
+    }
+
+    setTimeout(processNewWithdraws, 5000);
+}
+
+async function processBridgeQueue () {
+    if (BRIDGE_QUEUE.length > 0) {
+        const entry = BRIDGE_QUEUE.shift();
+        if (entry.tokenContractAddress === ETH_ADDRESS) {
             console.log("Sending ETH on L1");
             try {
                 const l1tx = await ethWallet.sendTransaction({
-                    to: sender,
-                    value: amountMinusFee.toString()
+                    to: entry.sender,
+                    value: entry.amountMinusFee.toString()
                 });
                 console.log(l1tx);
+                console.log("Waiting on transaction to be mined");
+                await l1tx.wait();
+                console.log("Transaction mined");
             } catch (e) {
                 console.log(e);
             }
@@ -261,15 +276,17 @@ async function processNewWithdraws() {
         // ERC-20
         else {
             console.log("Sending ERC-20 on L1");
-            const contract = new ethers.Contract(TOKEN_DETAILS[tokenId].address, ERC20_ABI, ethWallet);
+            const contract = new ethers.Contract(TOKEN_DETAILS[entry.tokenId].address, ERC20_ABI, ethWallet);
             try {
-                const l1tx = await contract.transfer(sender, amountMinusFee.toString());
+                const l1tx = await contract.transfer(entry.sender, entry.amountMinusFee.toString());
                 console.log(l1tx);
+                console.log("Waiting on transaction to be mined");
+                await l1tx.wait();
+                console.log("Transaction mined");
             } catch (e) {
                 console.error(e);
             }
         }
     }
-
-    setTimeout(processNewWithdraws, 5000);
+    setTimeout(processBridgeQueue, 5000);
 }
