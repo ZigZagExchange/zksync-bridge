@@ -232,7 +232,7 @@ async function processNewWithdraws() {
         // Get fee data and see if the tx amount is enough to pay fees
         // Fee estimation on Polygon is broken so you have to double it to make it work
         const feeData = await ethersProvider.getFeeData();
-        const bridgeFee = feeData.maxFeePerGas.mul(2).mul(21000);
+        const bridgeFee = feeData.maxFeePerGas.mul(10).mul(21000);
         
         // Adjust for decimal difference, gas difference, and price difference
         const ethFee = (bridgeFee.toString() / 1e18 * process.env.MATIC_ETH_PRICE_APPROX * 10**18 * 50000 / 21000).toFixed(0);
