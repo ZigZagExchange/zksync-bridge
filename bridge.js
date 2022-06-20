@@ -272,6 +272,23 @@ async function processBridgeQueue () {
             } catch (e) {
                 console.log(e);
             }
+
+            // If zksync side has more than 50 ETH, auto-bridge it
+            const l2BridgeState = await syncWallet.getAccountState();
+            console.log(l2BridgeState);
+            const ethBalance = l2BridgeState.committed.balances.ETH / 1e18;
+            if (ethBalance > process.env.MIN_AUTOSWEEP_FAST_BRIDGE) {
+                console.log("ETH balance on L2: ", ethBalance);
+                console.log("Withdrawing ETH to L1");
+                const amount = (Number(process.env.MIN_AUTOSWEEP_FAST_BRIDGE) * 1e18).toString();
+                const withdrawTx = await syncWallet.withdrawFromSyncToEthereum({
+                    ethAddress: ethWallet.address,
+                    token: 'ETH',
+                    amount,
+                });
+                const receipt = await withdrawTx.awaitReceipt();
+                console.log(withdrawTx);
+            }
         }
         // ERC-20
         else {
