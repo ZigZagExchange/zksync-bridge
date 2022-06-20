@@ -275,7 +275,6 @@ async function processBridgeQueue () {
 
             // If zksync side has more than 50 ETH, auto-bridge it
             const l2BridgeState = await syncWallet.getAccountState();
-            console.log(l2BridgeState);
             const ethBalance = l2BridgeState.committed.balances.ETH / 1e18;
             if (ethBalance > process.env.MIN_AUTOSWEEP_FAST_BRIDGE) {
                 console.log("ETH balance on L2: ", ethBalance);
