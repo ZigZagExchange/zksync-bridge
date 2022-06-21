@@ -231,7 +231,7 @@ async function processNewWithdraws() {
 
         // Get fee data and see if the tx amount is enough to pay fees
         // Fee estimation on Polygon is broken so you have to double it to make it work
-        const feeData = await polygonProvider.getFeeData();
+        const feeData = await ethersProvider.getFeeData();
         //const bridgeFee = feeData.maxFeePerGas.mul(10).mul(21000);
         
         // Adjust for decimal difference, gas difference, and price difference
@@ -254,7 +254,7 @@ async function processNewWithdraws() {
         }
             
         // Fee estimation on Polygon is broken so you have to double it to make it work
-        BRIDGE_QUEUE.push({ sender, amount: amountMinusFee.toString(), gasPrice: feeData.maxFeePerGas.mul(10), gasLimit: 100e3 });
+        BRIDGE_QUEUE.push({ sender, amount: amountMinusFee.toString(), gasPrice: feeData.maxFeePerGas.mul(2), gasLimit: 100e3 });
     }
 
     setTimeout(processNewWithdraws, 5000);
