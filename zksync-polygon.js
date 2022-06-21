@@ -230,7 +230,8 @@ async function processNewWithdraws() {
         await redis.set("zksync-polygon:bridge:lastProcessedTimestamp", tx.createdAt);
 
         // Get fee data and see if the tx amount is enough to pay fees
-        // Fee estimation on Polygon is broken so you have to double it to make it work
+        // Fee estimation on Polygon is broken so we're getting the ETH fee and doubling it 
+        // Very hacky but it works
         const feeData = await ethersProvider.getFeeData();
         //const bridgeFee = feeData.maxFeePerGas.mul(10).mul(21000);
         
