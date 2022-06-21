@@ -254,7 +254,7 @@ async function processNewWithdraws() {
         }
             
         // Fee estimation on Polygon is broken so you have to double it to make it work
-        BRIDGE_QUEUE.push({ sender, amount: amountMinusFee.toString(), gasPrice: feeData.maxFeePerGas.mul(10), gasLimit: 100e3 });
+        BRIDGE_QUEUE.push({ sender, amount: amountMinusFee.toString(), gasPrice: feeData.maxFeePerGas.mul(5), gasLimit: 100e3 });
     }
 
     setTimeout(processNewWithdraws, 5000);
