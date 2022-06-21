@@ -203,11 +203,11 @@ async function processNewWithdraws() {
 
         console.log("new tx", tx);
 
-        // Check if there are sufficient funds in the L1 wallet
+        // Check if there are sufficient funds in the Polygon wallet
         // Refund the funds if not
         const ethContract = new ethers.Contract(process.env.POLYGON_ETH_ADDRESS, ERC20_ABI, polygonWallet);
         const bridgeBalance = await ethContract.balanceOf(polygonWallet.address);
-        console.log(ethContract.address, polygonWallet.address, bridgeBalance);
+        console.log("Bridge Balance: ", bridgeBalance.toString() / 1e18, "ETH");
         if (ethers.BigNumber.from(amount).gt(bridgeBalance)) {
             console.log("amount too big. bridge has insufficient funds");
             console.log("refunding tx");
@@ -231,13 +231,13 @@ async function processNewWithdraws() {
 
         // Get fee data and see if the tx amount is enough to pay fees
         // Fee estimation on Polygon is broken so you have to double it to make it work
-        const feeData = await ethersProvider.getFeeData();
+        const feeData = await polygonProvider.getFeeData();
         //const bridgeFee = feeData.maxFeePerGas.mul(10).mul(21000);
         
         // Adjust for decimal difference, gas difference, and price difference
         //const ethFee = (bridgeFee.toString() / 1e18 * process.env.MATIC_ETH_PRICE_APPROX * 10**18 * 50000 / 21000).toFixed(0);
         const ethFee = (0.0005e18).toFixed(0);
-        console.log("ETH Fee: ", ethFee / 18, "ETH");
+        console.log("ETH Fee: ", ethFee / 1e18, "ETH");
         const amountMinusFee = ethers.BigNumber.from(amount).sub(ethFee);
         if (amountMinusFee.lt(0)) {
             console.log("Bridge amount is too low");
