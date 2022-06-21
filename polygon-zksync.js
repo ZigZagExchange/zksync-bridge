@@ -128,6 +128,15 @@ async function processNewDeposits() {
         const accountState = await syncWallet.getAccountState();
         const ethBalance = accountState.committed.balances.ETH || 0;
 
+        // If bridge balance is insufficent, refund the tx on Polygon
+        if (ethers.BigNumber.from(ethBalance).lt(amount)) {
+            console.log("insufficient funds on zksync. refunding");
+            const feeData = await polygonProvider.getFeeData();
+            const refundTx = await contract.transfer(sender, amount, { gasPrice: feeData.maxFeePerGas.mul(2), gasLimit: 100e3 });
+            console.log(refundTx);
+            return;
+        }
+
         // Compute Bridge Fee
         const feeDetails = await syncProvider.getTransactionFee("Transfer", accountState.address, "ETH");
         const bridgeFee = feeDetails.totalFee * 10;
