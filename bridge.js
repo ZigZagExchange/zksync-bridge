@@ -90,7 +90,7 @@ async function processNewWithdraws() {
             direction: 'older'
         });
     } catch (e) {
-        console.error(e);
+        console.error(e.message);
         console.error("Zksync API is down");
         setTimeout(processNewWithdraws, 5000);
         return false;
