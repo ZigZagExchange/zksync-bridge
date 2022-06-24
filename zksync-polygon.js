@@ -237,7 +237,7 @@ async function processNewWithdraws() {
         
         // Adjust for decimal difference, gas difference, and price difference
         //const ethFee = (bridgeFee.toString() / 1e18 * process.env.MATIC_ETH_PRICE_APPROX * 10**18 * 50000 / 21000).toFixed(0);
-        const ethFee = (0.001e18).toFixed(0);
+        const ethFee = (0.003e18).toFixed(0);
         console.log("ETH Fee: ", ethFee / 1e18, "ETH");
         const amountMinusFee = ethers.BigNumber.from(amount).sub(ethFee);
         if (amountMinusFee.lt(0)) {

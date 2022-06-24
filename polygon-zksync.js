@@ -139,7 +139,7 @@ async function processNewDeposits() {
 
         // Compute Bridge Fee
         //const feeDetails = await syncProvider.getTransactionFee("Transfer", accountState.address, "ETH");
-        const bridgeFee = 0.001e18;
+        const bridgeFee = 0.003e18;
         console.log("Bridge Fee: ", bridgeFee / 1e18, " ETH");
 
         // Send Transaction 
