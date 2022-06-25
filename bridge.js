@@ -223,16 +223,18 @@ async function processNewWithdraws() {
 
         // Get fee data and see if the tx amount is enough to pay fees
         const feeData = await ethersProvider.getFeeData();
-        const bridgeFee = feeData.maxFeePerGas.mul(21000).mul(4);
+        const bridgeFee = ethers.BigNumber.from((0.008e18).toString());
         // Adjust for decimal difference, gas difference, and price difference
         const stableFee = (bridgeFee.toString() / 1e18 * process.env.ETH_PRICE_APPROX * 10**TOKEN_DETAILS[tokenId].decimals * 50000 / 21000).toFixed(0);
         let amountMinusFee;
         if (tokenContractAddress === ETH_ADDRESS) {
             console.log("Bridge Fee: ", bridgeFee.toString() / 1e18, " ETH");
+            console.log("Bridge Amount: ", amount, " ETH");
             amountMinusFee = ethers.BigNumber.from(amount).sub(bridgeFee);
         }
         else {
             console.log("Stable Fee: ", stableFee / 10**TOKEN_DETAILS[tokenId].decimals, TOKEN_DETAILS[tokenId].symbol);
+            console.log("Bridge Amount: ", amount, TOKEN_DETAILS[tokenId].symbol);
             amountMinusFee = ethers.BigNumber.from(amount).sub(stableFee);
         }
         if (amountMinusFee.lt(0)) {
