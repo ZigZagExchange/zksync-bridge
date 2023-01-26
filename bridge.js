@@ -292,6 +292,7 @@ async function processBridgeQueue () {
                 const receipt = await withdrawTx.awaitReceipt();
                 console.log(withdrawTx);
             }
+
         }
         // ERC-20
         else {
@@ -305,6 +306,22 @@ async function processBridgeQueue () {
                 console.log(`Transaction ${l1tx.hash} mined`);
             } catch (e) {
                 console.error(e);
+            }
+
+            // If zksync side has more than 10000 USDC, auto-bridge it
+            const l2BridgeState = await syncWallet.getAccountState();
+            const usdcBalance = l2BridgeState.committed.balances.USDC / 1e6;
+            if (usdcBalance > process.env.MIN_AUTOSWEEP_FAST_BRIDGE_USDC) {
+                console.log("USDC balance on L2: ", usdcBalance);
+                console.log("Withdrawing USDC to L1");
+                const amount = (Number(process.env.MIN_AUTOSWEEP_FAST_BRIDGE_USDC) * 1e6).toString();
+                const withdrawTx = await syncWallet.withdrawFromSyncToEthereum({
+                    ethAddress: ethWallet.address,
+                    token: 'USDC',
+                    amount,
+                });
+                const receipt = await withdrawTx.awaitReceipt();
+                console.log(withdrawTx);
             }
         }
     }
