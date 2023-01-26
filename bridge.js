@@ -236,7 +236,7 @@ async function processNewWithdraws() {
         else {
             console.log("Bridge Fee: ", bridgeFee.toString() / 1e18, " ETH");
             console.log("Stable Fee: ", stableFee / 10**TOKEN_DETAILS[tokenId].decimals, TOKEN_DETAILS[tokenId].symbol);
-            console.log("Bridge Amount: ", amount, TOKEN_DETAILS[tokenId].symbol);
+            console.log("Bridge Amount: ", amount / 10**TOKEN_DETAILS[tokenId].decimals, TOKEN_DETAILS[tokenId].symbol);
             amountMinusFee = ethers.BigNumber.from(amount).sub(stableFee);
         }
         if (amountMinusFee.lt(0)) {
