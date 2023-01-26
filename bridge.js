@@ -223,7 +223,8 @@ async function processNewWithdraws() {
 
         // Get fee data and see if the tx amount is enough to pay fees
         const feeData = await ethersProvider.getFeeData();
-        const bridgeFee = ethers.BigNumber.from((0.008e18).toString());
+        console.log(feeData);
+        const bridgeFee = feeData.maxPriorityFeePerGas.mul(21000).mul(3);
 
         // Adjust for decimal difference, gas difference, and price difference
         const stableFee = (bridgeFee.toString() / 1e18 * process.env.ETH_PRICE_APPROX * 10**TOKEN_DETAILS[tokenId].decimals * 50000 / 21000).toFixed(0);
